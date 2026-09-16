@@ -1,6 +1,5 @@
 import {
   Connect4Controller,
-  GameState,
   GameStatus,
   Player,
 } from "../connect4Controller";
