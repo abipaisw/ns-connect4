@@ -35,8 +35,27 @@ export class Connect4Controller {
   public makeMove(column: number): GameStatus | null {
     console.log("Dropping a token into a column:", column);
 
-    // This method needs to be implemented!
-    this.board[0][column] = this.currentPlayer;
+    // - Validate column input
+    if (column < 0 || column >= this.width) {
+      throw new RangeError("column index out of bounds");
+    }
+
+    // - Find the lowest row
+    // The board is stored rows first, then columns
+    const columnState = this.board.map((row) => row[column]);
+    const lowestOpenCell = columnState.findLastIndex(
+      (cellState) => cellState === 0,
+    );
+
+    if (lowestOpenCell === -1) {
+      throw new Error(`column ${column} has no open cells`); // TODO: are there more specific Error classes? eg. ValueError in Python
+    }
+
+    // - Place a counter
+    this.board[lowestOpenCell][column] = this.currentPlayer;
+
+    // - Change player
+    this.currentPlayer = this.currentPlayer === 2 ? 1 : 2;
 
     return this.getStatus();
   }
