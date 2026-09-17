@@ -34,13 +34,26 @@ export class Connect4Controller {
     return this.getStatus();
   }
 
-  private getWinner(): Player | null {
+  private isGameWon(): boolean | null {
     /*
-    getWinner returns a player number if one player has won, 0 if there is a draw, and null if the game has not yet
-    reached a conclusion.
-    TODO: does not check draws.
-    TODO: could be optimised by only checking the current player? Only the current player can win.
+    isGameWon returns true if the current player has won the game, false if not, and null if a draw has occurred and no
+    player can win.
      */
+
+    // Here, coordinates are represented with complex numbers, where the real component is the row and the imaginary
+    // component is the column. This is a good way to represent coordinates in languages with complex number support
+    // built-in (eg. Python) but makes considerably less sense in a language like JS/TS where you would need to bring in
+    // a library Mathjs.
+    //
+    // I would not add a library to a real codebase to do this, and would probably just implement a very basic
+    // coordinate type that supports addition and the like instead.
+
+    // General strategy: work left-to-right, top-to-bottom through the board. When a counter that has not already been
+    // visited is found, count the number of adjacent counters of the same type, marking them as visited as you go.
+    // Any counter with 3 or more adjacent counters of the same type triggers a win for that player.
+
+    // Only counters placed by the current player are checked, as only that player will have added new counters since
+    // the last time this was checked at the end of the previous turn.
 
     const visitedCells: Complex[] = [];
     const board = this.board;
@@ -52,19 +65,18 @@ export class Connect4Controller {
     const countAdjacentCellsOfType = (cell: Complex, direction: Complex, type: Player): number => {
       visitedCells.push(cell);
       const next = add(cell, direction);
-      console.log("countadjacent", "cell", cell, "direction", direction, "type", type, "next", next)
+
       if (isCellOutOfBounds(next)) {
-        console.log("stop, next out of bounds")
         return 0;
       }
+
       if (getCellValue(next) === type) {
-        console.log("next right type")
         if (hasCellBeenVisited(next)) {
           throw new Error("programming error: visited cells should never be explored again")
         }
         return 1 + countAdjacentCellsOfType(next, direction, type);
       }
-      console.log("next wrong type");
+
       return 0;
     }
 
@@ -73,40 +85,44 @@ export class Connect4Controller {
         const cell = complex(row, col);
         const cellValue = getCellValue(cell);
 
-        if (hasCellBeenVisited(cell) || cellValue === 0) {
-          // we do not visit any cells more than once because any sequence they are a part of is either a win or not, and we check an entire sequence in one go
+        if (hasCellBeenVisited(cell) || cellValue !== this.currentPlayer) {
           continue;
         }
 
         const magnitudes: Complex[] = [
-          // vertical (by definition, behind must have been visited first)
+          // vertical (anything above must have been visited first, so we only check below)
           complex(1, 0),
-          // horizontal (by definition, behind must have been visited first)
+          // horizontal (anything behind must have been visited first, so we only check further to the right)
           complex(0, 1),
-          // diagonal left
-          complex(1, 1),
           // diagonal right
+          complex(1, 1),
+          // diagonal left (we must check cells below and behind explicitly, nothing in any rows below will have been
+          // visited yet, regardless of if they are in to the left or right)
           complex(1, -1),
         ];
 
-        console.log("looking at", cell);
-
         for (let i = 0; i < magnitudes.length; i += 1) {
           const magnitude = magnitudes[i];
-          console.log("mag is", magnitude);
-
-          let count = countAdjacentCellsOfType(cell, magnitude, cellValue);
-
-          console.log("result is", count)
-
+          const count = countAdjacentCellsOfType(cell, magnitude, cellValue);
           if (count >= 3) {
-            return cellValue;
+            return true;
           }
         }
       }
     }
 
-    return null;
+    // Reaching here means there are no clear winners.
+
+    // Lazy check for draws (ie. top row of board is completely full, therefore board is completely full)
+    const isTopRowFull = this.board[0].reduce(
+        (acc, val) => acc && val !== 0,
+        true
+    )
+    if (isTopRowFull) {
+      return null;
+    }
+
+    return false;
   }
 
   public makeMove(column: number): GameStatus | null {
@@ -131,11 +147,10 @@ export class Connect4Controller {
     // - Place a counter
     this.board[lowestOpenCell][column] = this.currentPlayer;
 
-    if (this.getWinner() !== null) {
-      // TODO: getWinner could return the other player
+    if (this.isGameWon() === true) {
       this.gameState = "won";
     } else {
-      // - Change player
+      // Alternate player
       this.currentPlayer = this.currentPlayer === 2 ? 1 : 2;
     }
 
