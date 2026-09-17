@@ -4,6 +4,10 @@ import {
   Player,
 } from "../connect4Controller";
 
+const applyMoves = (controller: Connect4Controller, moves: number[]) => {
+  moves.forEach((val) => controller.makeMove(val));
+};
+
 describe("Connect4Controller", () => {
   describe("makeMove", () => {
     it("should fill a 1x1 grid when making a move in column 0", () => {
@@ -67,6 +71,106 @@ describe("Connect4Controller", () => {
         expect(previousPlayer).not.toEqual(state?.currentPlayer);
         previousPlayer = state?.currentPlayer || 0; // state will never be null
       }
+    });
+  });
+
+  describe("isGameWon", () => {
+    it("should detect horizontal lines as wins", () => {
+      const controller = new Connect4Controller(5, 5);
+      controller.newGame();
+
+      // x x x x x
+      // x x x x x
+      // x x x x 2
+      // x x x x 2
+      // 1 1 1 1 2
+      applyMoves(controller, [0, 4, 1, 4, 2, 4]);
+
+      const status = controller.makeMove(3);
+      expect(status).not.toBeNull();
+      expect(status?.state).toBe("won");
+      expect(status?.currentPlayer).toBe(1);
+    });
+
+    it("should detect vertical lines as wins", () => {
+      const controller = new Connect4Controller(5, 5);
+      controller.newGame();
+
+      // x x x x x
+      // x x 2 x x
+      // x x 2 x x
+      // 1 1 2 x x
+      // 1 1 2 x x
+      applyMoves(controller, [0, 2, 1, 2, 0, 2, 1]);
+
+      const status = controller.makeMove(2);
+      expect(status).not.toBeNull();
+      expect(status?.state).toBe("won");
+      expect(status?.currentPlayer).toBe(2);
+    });
+
+    it("should detect left-diagonal lines as wins", () => {
+      const controller = new Connect4Controller(5, 5);
+      controller.newGame();
+
+      // x x x x x
+      // x x x 1 x
+      // x x 1 2 1
+      // x 1 2 2 1
+      // 1 2 2 2 1
+      applyMoves(controller, [0, 1, 1, 2, 4, 2, 2, 3, 4, 3, 4, 3]);
+
+      const status = controller.makeMove(3);
+      expect(status).not.toBeNull();
+      expect(status?.state).toBe("won");
+      expect(status?.currentPlayer).toBe(1);
+    });
+
+    it("should detect right-diagonal lines as wins", () => {
+      const controller = new Connect4Controller(5, 5);
+      controller.newGame();
+
+      // x x x x x
+      // x 1 x x x
+      // 1 2 1 x x
+      // 1 2 2 1 x
+      // 1 2 2 2 1
+      applyMoves(controller, [4, 3, 3, 2, 0, 2, 2, 1, 0, 1, 0, 1]);
+
+      const status = controller.makeMove(1);
+      expect(status).not.toBeNull();
+      expect(status?.state).toBe("won");
+      expect(status?.currentPlayer).toBe(1);
+    });
+
+    it("should detect full boards without any lines as draws", () => {
+      const controller = new Connect4Controller(5, 1);
+      controller.newGame();
+
+      // 1 2 1 2 1
+      applyMoves(controller, [0, 1, 2, 3]);
+
+      const status = controller.makeMove(4);
+      expect(status).not.toBeNull();
+      expect(status?.state).toBe("draw");
+      expect(status?.winner).toBeUndefined();
+    });
+
+    it("should detect non-full boards without any lines as not wins and not draws", () => {
+      const controller = new Connect4Controller(5, 5);
+      controller.newGame();
+
+      // x x x x x
+      // x x x x x
+      // x x x x x
+      // 1 2 x x x
+      // 1 2 x x x
+      applyMoves(controller, [0, 1, 0, 1]);
+
+      const status = controller.makeMove(3);
+      expect(status).not.toBeNull();
+      expect(status?.state).toBe("ongoing");
+      expect(status?.winner).toBeUndefined();
     });
   });
 });
