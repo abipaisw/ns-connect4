@@ -42,7 +42,7 @@ export default function Grid({ controller }: GridProps) {
 
   return (
     <div className="flex flex-col items-center gap-4">
-      <div className="text-lg font-semibold">{getStatusMessage()}</div>
+      <div data-testid="statusMessage" className="text-lg font-semibold">{getStatusMessage()}</div>
       <div
         style={{
           display: "grid",
@@ -53,6 +53,7 @@ export default function Grid({ controller }: GridProps) {
           row.map((cell, colIndex) => (
             <button
               key={`${rowIndex}-${colIndex}`}
+              data-testid={`grid-${rowIndex}-${colIndex}`}
               className="aspect-square w-10 h-10 border-1 border-gray-300 dark:border-gray-700 transition-colors"
               onClick={() => handleColumnClick(colIndex)}
             >
