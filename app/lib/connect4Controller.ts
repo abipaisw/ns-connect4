@@ -1,5 +1,3 @@
-import {add, complex, Complex} from "mathjs"; // TODO: is there any way to scope these imports?
-
 export type GameState = "ongoing" | "won" | "draw" | "idle";
 export type Player = 0 | 1 | 2; // 0 = empty, 1 = player 1, 2 = player 2
 
@@ -9,6 +7,18 @@ export interface GameStatus {
   currentPlayer: Player;
   board: Player[][];
 }
+
+type Coordinate = [number, number];
+
+const addCoordinate = (a: Coordinate, b: Coordinate): Coordinate => {
+  return [a[0] + b[0], a[1] + b[1]];
+};
+
+const negateCoordinate = (a: Coordinate): Coordinate => {
+  return [-a[0], -a[1]];
+}
+
+const WIN_LENGTH = 4;
 
 export class Connect4Controller {
   public width: number;
@@ -34,80 +44,56 @@ export class Connect4Controller {
     return this.getStatus();
   }
 
-  private isGameWon(): boolean | null {
+  private getNextGameState(lastPlacedPieceRow: number, lastPlacedPieceCol: number): GameState {
     /*
-    isGameWon returns true if the current player has won the game, false if not, and null if a draw has occurred and no
-    player can win.
+    getNextGameState returns "won" if the current player has won the game, "ongoing" if not, and "draw" if a draw has
+    occurred and no player can win.
      */
 
-    // Here, coordinates are represented with complex numbers, where the real component is the row and the imaginary
-    // component is the column. This is a good way to represent coordinates in languages with complex number support
-    // built-in (eg. Python) but makes considerably less sense in a language like JS/TS where you would need to bring in
-    // a library Mathjs.
-    //
-    // I would not add a library to a real codebase to do this, and would probably just implement a very basic
-    // coordinate type that supports addition and the like instead.
+    // Here, coordinates are represented row-first to match the way the game board is indexed.
 
-    // General strategy: work left-to-right, top-to-bottom through the board. When a counter that has not already been
-    // visited is found, count the number of adjacent counters of the same type, marking them as visited as you go.
-    // Any counter with 3 or more adjacent counters of the same type triggers a win for that player.
+    // Only the most recently placed counter can create a win, as all previously placed counters were checked in
+    // previous turns, and if a win was triggered then, no more counters would have been placed.
 
-    // Only counters placed by the current player are checked, as only that player will have added new counters since
-    // the last time this was checked at the end of the previous turn.
+    // Therefore, from the last placed counter, the number of adjacent counters is counted for each direction that could
+    // create a connected line of 4. If any direction with 3 or more adjacent counters exists, a win is triggered.
 
-    const visitedCells: Complex[] = [];
-    const board = this.board;
+    const lastPlacedPiece: Coordinate = [lastPlacedPieceRow, lastPlacedPieceCol];
 
-    const getCellValue = (cell: Complex): Player => board[cell.re][cell.im];
-    const isCellOutOfBounds = (cell: Complex): boolean => board[cell.re] === undefined || board[cell.re][cell.im] === undefined;
-    const hasCellBeenVisited = (cell: Complex): boolean => visitedCells.indexOf(cell) !== -1;
+    const getCellValue = ([row, col]: Coordinate): Player => this.board[row][col];
+    const isCellOutOfBounds = ([row, col]: Coordinate): boolean => !(row >= 0 && row < this.height && col >= 0 && col < this.width);
 
-    const countAdjacentCellsOfType = (cell: Complex, direction: Complex, type: Player): number => {
-      visitedCells.push(cell);
-      const next = add(cell, direction);
+    const countAdjacentCellsOfType = (cell: Coordinate, direction: Coordinate, type: Player): number => {
+      const next = addCoordinate(cell, direction);
 
       if (isCellOutOfBounds(next)) {
         return 0;
       }
 
       if (getCellValue(next) === type) {
-        if (hasCellBeenVisited(next)) {
-          throw new Error("programming error: visited cells should never be explored again")
-        }
         return 1 + countAdjacentCellsOfType(next, direction, type);
       }
 
       return 0;
     }
 
-    for (let row = 0; row < this.height; row += 1) {
-      for (let col = 0; col < this.width; col += 1) {
-        const cell = complex(row, col);
-        const cellValue = getCellValue(cell);
+    const scanDirections: Coordinate[] = [
+      // vertical
+      [1, 0],
+      // horizontal
+      [0, 1],
+      // down-right diagonal
+      [1, 1],
+      // down-left diagonal
+      [1, -1],
+    ];
 
-        if (hasCellBeenVisited(cell) || cellValue !== this.currentPlayer) {
-          continue;
-        }
-
-        const magnitudes: Complex[] = [
-          // vertical (anything above must have been visited first, so we only check below)
-          complex(1, 0),
-          // horizontal (anything behind must have been visited first, so we only check further to the right)
-          complex(0, 1),
-          // diagonal right
-          complex(1, 1),
-          // diagonal left (we must check cells below and behind explicitly, nothing in any rows below will have been
-          // visited yet, regardless of if they are in to the left or right)
-          complex(1, -1),
-        ];
-
-        for (let i = 0; i < magnitudes.length; i += 1) {
-          const magnitude = magnitudes[i];
-          const count = countAdjacentCellsOfType(cell, magnitude, cellValue);
-          if (count >= 3) {
-            return true;
-          }
-        }
+    for (let i = 0; i < scanDirections.length; i += 1) {
+      const scanDirection = scanDirections[i];
+      const count = countAdjacentCellsOfType(lastPlacedPiece, scanDirection, this.currentPlayer) +
+          countAdjacentCellsOfType(lastPlacedPiece, negateCoordinate(scanDirection), this.currentPlayer);
+      if (count + 1 >= WIN_LENGTH) {
+        return "won";
       }
     }
 
@@ -119,10 +105,10 @@ export class Connect4Controller {
         true
     )
     if (isTopRowFull) {
-      return null;
+      return "draw";
     }
 
-    return false;
+    return "ongoing";
   }
 
   public makeMove(column: number): GameStatus | null {
@@ -147,13 +133,8 @@ export class Connect4Controller {
     // - Place a counter
     this.board[lowestOpenCell][column] = this.currentPlayer;
 
-    const winStatus = this.isGameWon();
-    if (winStatus === null) {
-      this.gameState = "draw";
-    } else if (winStatus) {
-      this.gameState = "won";
-    } else {
-      // Alternate player
+    this.gameState = this.getNextGameState(lowestOpenCell, column);
+    if (this.gameState === "ongoing") {
       this.currentPlayer = this.currentPlayer === 2 ? 1 : 2;
     }
 
