@@ -147,7 +147,10 @@ export class Connect4Controller {
     // - Place a counter
     this.board[lowestOpenCell][column] = this.currentPlayer;
 
-    if (this.isGameWon() === true) {
+    const winStatus = this.isGameWon();
+    if (winStatus === null) {
+      this.gameState = "draw";
+    } else if (winStatus) {
       this.gameState = "won";
     } else {
       // Alternate player
